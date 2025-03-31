@@ -1,0 +1,2 @@
+pycti==6.5.10
+eml_parser==2.0.0

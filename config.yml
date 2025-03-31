@@ -1,0 +1,12 @@
+opencti:
+  base_url: "http://127.0.0.1:8080"
+  token: "6bf591cc-fe0d-441a-87e6-98aed7531c81"
+
+connector:
+  id: "plainbit-connector"
+  type: "EXTERNAL_IMPORT"
+  name: "Plainbit Intelligence"
+  scope: "threat-report"
+  confidence_level: 100
+  log_level: "info"
+  update_existing_data: true
