@@ -6,47 +6,48 @@ from dateutil import parser as date_parser
 from core.plb_eml import PLBEml
 # from parser.eml.screenshot import get_eml_to_image
 
+import pandas as pd
+
+EML_EXCEL = "osint_eml.xlsx"
+SHEET_NAME = "EML"
+
 def extract_suspicious_links(body):
     urls = re.findall(r'https?://[^\s\'"<>]+', body)
     return [url.replace("http", "hxxp", 1) for url in urls]
 
-def parse_all_eml_files(folder_path="Target"):
+def exist_data(value):
+    if len(value) > 0:
+        return [value]
+
+    return value
+
+def parse_all_eml_data(folder_path="Target"):
     eml_list = []
-
-    for file_name in os.listdir(folder_path):
-        if file_name.lower().endswith(".eml"):
-            file_path = os.path.join(folder_path, file_name)
-            try:
-                with open(file_path, "rb") as f:
-                    msg = BytesParser(policy=policy.default).parse(f)
-
-                message_id = msg.get("Message-ID", "").strip()
-                date_raw = msg.get("Date")
-                date_parsed = date_parser.parse(date_raw)
-                iso_date = date_parsed.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-                subject = msg.get("Subject", "")
-                from_ = msg.get("From", "")
-                to = msg.get("To", "")
-                body = msg.get_body(preferencelist=('plain', 'html')).get_content()
-
-                suspicious_links = extract_suspicious_links(body)
-
-                eml_obj = PLBEml(
-                    file_name=file_name,
-                    message_id=message_id,
-                    date=iso_date,
-                    subject=subject,
-                    from_=from_,
-                    to=to,
-                    body=body,
-                    suspicious_link=suspicious_links
-                )
-                eml_list.append(eml_obj)
-
-                # get_eml_to_image(file_path)
-
-            except Exception as e:
-                print(f"[!] Error parsing {file_name}: {e}")
-
+    
+    xls_path = os.path.join(folder_path, EML_EXCEL)
+    df = pd.read_excel(xls_path, sheet_name=SHEET_NAME, engine='openpyxl')
+    eml_data = df.to_dict(orient='records')
+    
+    for eml in eml_data:
+        file_name = eml.get("FILE NAME", "-")
+        date = pd.Timestamp(eml.get("DATE", "-")).tz_localize("UTC", ambiguous='NaT').isoformat().replace("+00:00", "Z")
+        subject = eml.get("SUBJECT", "-")
+        from_ = eml.get("FROM", "-")
+        to_ = exist_data(eml.get("TO", []))
+        cc_ = exist_data(eml.get("CC", []))
+        message_id = eml.get("MESSAGE ID", "-")
+        slink = exist_data(eml.get("SUSPICIOUS URL", []))
+        sfile = exist_data(eml.get("SUSPICIOUS FILE", []))
+        md5 = eml.get("MD5", "-")
+        
+        eml_obj = PLBEml(
+            file_name, message_id, date, subject, from_, to_, cc_, slink, sfile, md5
+        )
+        
+        eml_list.append(eml_obj)
+        
     return eml_list
+    
+    
+    
+    

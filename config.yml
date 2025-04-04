@@ -1,6 +1,6 @@
 opencti:
-  base_url: "http://127.0.0.1:8080"
-  token: "6bf591cc-fe0d-441a-87e6-98aed7531c81"
+  url: http://localhost:8080
+  token: 6bf591cc-fe0d-441a-87e6-98aed7531c81
 
 connector:
   id: "plainbit-connector"

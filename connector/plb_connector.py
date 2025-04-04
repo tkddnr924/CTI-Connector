@@ -5,6 +5,7 @@ from core.plb_eml import PLBEml
 from core.opencti_observable import ObservationType
 from typing import List
 import random
+from urllib.parse import urlparse
 
 def random_hex_color():
     return "#{:06x}".format(random.randint(0, 0xFFFFFF))
@@ -16,7 +17,7 @@ class PLBConnector:
     def __init__(self, helper: OpenCTIConnectorHelper):
         self.helper = helper
         
-        depoly = "TEST"
+        depoly = "EML"
         
         incident_name = f"Incident: {depoly}"
         
@@ -39,6 +40,7 @@ class PLBConnector:
     def run(self):
         self.helper.log_info("PLAINBIT Connector Started")
         self._run_eml()
+        # self._run_test() 
 
     # MAKE DATA ######################################################################
     def make_observable(self, data, label=["PLAINBIT"]):
@@ -77,8 +79,11 @@ class PLBConnector:
             self.helper.api.label.create(value=label, color=random_hex_color())
     
     # RUN #############################################################################
+    def _run_test(self):
+        eml_parser.parse_all_eml_data("Target")
+    
     def _run_eml(self):
-        eml_list: List[PLBEml] = eml_parser.parse_all_eml_files("Target")
+        eml_list: List[PLBEml] = eml_parser.parse_all_eml_data("Target")
         
         if not eml_list:
             self.helper.log_info("No EML Data")
@@ -118,41 +123,55 @@ class PLBConnector:
                     self.connect_obj_or_relationship(self.incident['id'], ob_addr['id'])
                     self.connect_obj_or_relationship(self.incident['id'], rel_addr['id'])
                 
-                if len(eml.to) > 0:
-                    email_addr_to = {
-                        "type": ObservationType.EMAIL_ADDR,
-                        "value": eml.to,
-                    }
-                    
-                    to_label = self.label + ["To"]
-                    
-                    ob_addr_to = self.make_observable(email_addr_to, to_label)
-                    self.make_relationship(ob_message['id'], ob_addr_to['id'])
+                if len(eml.to_) > 0:
+                    for _to in eml.to_:
+                        
+                        if _to == "-":
+                            continue
+                        
+                        print(f"TO: {_to}")
+                        email_addr_to = {
+                            "type": ObservationType.EMAIL_ADDR,
+                            "value": _to,
+                        }
+                        
+                        to_label = self.label + ["To"]
+                        
+                        ob_addr_to = self.make_observable(email_addr_to, to_label)
+                        self.make_relationship(ob_message['id'], ob_addr_to['id'])
                 
                 if len(eml.suspicious_link) > 0:
                     for _link in eml.suspicious_link:
+                        
+                        if "[.]" in _link:
+                            _link = _link.replace("[.]", ".")
+                        
                         link_data = {
                             "type": ObservationType.URL,
                             "value": _link
                         }
                         
                         label = ["Suspicious-Link"]
+                        
                         ob_link = self.make_observable(link_data, label)
+                        
+                        print(f"{eml} | {ob_message['id']} : {ob_link['id']}")
                         rel_link = self.make_relationship(ob_message['id'], ob_link['id'])
                         self.connect_obj_or_relationship(self.incident['id'], ob_link['id'])
                         self.connect_obj_or_relationship(self.incident['id'], rel_link['id'])
                         
-                        
-                if len(eml.suspicious_domain) > 0:
-                    for _domain in eml.suspicious_domain:
+                        domain = self._check_domain(_link)
                         domain_data = {
                             "type": ObservationType.DOMAIN,
-                            "value": _domain
+                            "value": domain
                         }
-                        label = ["Suspicious-Link"]
+                        
                         ob_domain = self.make_observable(domain_data, label)
-                        rel_domain = self.make_relationship(ob_message['id'], ob_domain['id'])
+                        rel_domain = self.make_relationship(ob_link['id'], ob_domain['id'])
+                        
                         self.connect_obj_or_relationship(self.incident['id'], ob_domain['id'])
                         self.connect_obj_or_relationship(self.incident['id'], rel_domain['id'])
-                        
-                
+
+    def _check_domain(self, url):
+        return urlparse(url.replace("hxxp", "http", 1)).netloc
+    
